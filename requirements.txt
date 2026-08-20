@@ -1,0 +1,23 @@
+# Data, model training, explainability
+pandas
+numpy
+scikit-learn
+xgboost
+shap
+matplotlib
+seaborn
+jupyter
+ipykernel
+pyarrow
+
+# Backend — FastAPI + PostgreSQL
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic
+pydantic-settings
+
+# LLM report generation (Groq, with deterministic fallback)
+groq

@@ -1,0 +1,30 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Data & models (large / sensitive)
+data/
+models/
+*.pkl
+*.parquet
+
+# Local SQLite DB (development)
+*.db
+
+# Reports (generated images) — keep folder, ignore outputs
+reports/*.png
+reports/*.jpg
+
+# Secrets
+.env
+*.env
+
+# Node / frontend
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+.vscode/
