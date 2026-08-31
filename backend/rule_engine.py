@@ -5,15 +5,15 @@ RULE_FIELDS = [
     "oldbalanceDest", "newbalanceDest", "type", "step",
 ]
 
-# lift = multiplier of the fraud rate over baseline when the rule fires, on train+val
 _SOFT_WEIGHTS: dict[str, int] = {
-    "night_transaction":    45,  # lift=24x
-    "drain_account":        20,  # lift=2.3x
-    "high_amount_transfer": 30,  # lift=2.3x
+    "night_transaction":    45,
+    "drain_account":        20,
+    "high_amount_transfer": 30,
 }
 
 _ML_WEIGHT   = 0.70
 _SOFT_WEIGHT = 0.30
+_SOFT_CONTRIB    = 0.13
 _THRESHOLD_RED   = 85.0
 _THRESHOLD_GREEN = 15.0
 
@@ -35,27 +35,6 @@ def check_hard_rules(txn: dict) -> dict:
 
 
 def check_clean_confirming_rules(txn: dict) -> dict:
-    """Clean-direction hard rules: signals strong enough to contradict an
-    AI #2 "fraud" suggestion. Deliberately NEVER read by
-    compute_hybrid_score() or anything else in the scoring path — the only
-    consumer is automation.py's evaluate_auto_decision() (Gate B). Kept in
-    a separate function (not folded into check_hard_rules()) specifically
-    so hard_rule_flag stays fraud-direction-only; a single flag can't mean
-    two opposite things.
-
-    clean_confirmed: amount is a modest fraction of the source balance
-    (opposite of the drain_account soft rule) AND the destination is not a
-    ghost account (logical negation of check_hard_rules()'s
-    ghost_destination). Empirically verified on train+val
-    (TRANSFER/CASH_OUT only): coverage 5.63%, fraud_rate 0.0008% vs. a
-    0.30% baseline — a 370x reduction, symmetric to ghost_destination's
-    237.8x lift in the fraud direction. errorBalanceOrig≈0 ("balance
-    consistency") was tested and deliberately excluded: on this dataset it
-    has lift=9.78x (i.e. it's a mild fraud indicator, not a clean one) —
-    PaySim's full-drain fraud pattern is itself exactly balance-consistent,
-    so including it would have mislabeled genuine fraud as clean-confirmed.
-    See the README's Human-Confirmed Automation section for the full
-    analysis."""
     hits: list[str] = []
 
     orig_bal = txn.get("oldbalanceOrg", 0)
@@ -104,7 +83,10 @@ def compute_hybrid_score(
     ml_score = round(float(ml_proba) * 100, 2)
 
     if hard_rule_flag:
-        hybrid_score = round(max(_THRESHOLD_RED, ml_score), 2)
+        hybrid_score = round(
+            min(100.0, max(_THRESHOLD_RED, ml_score) + _SOFT_CONTRIB * float(soft_score)),
+            2,
+        )
         risk_band    = "RED"
     else:
         hybrid_score = round(
@@ -130,9 +112,5 @@ def score_transaction(txn: dict, ml_proba: float) -> dict:
     hard   = check_hard_rules(txn)
     clean  = check_clean_confirming_rules(txn)
     soft   = check_soft_rules(txn)
-    # compute_hybrid_score() only ever reads hard["hard_rule_flag"] — clean
-    # rides along in the merged result for downstream persistence (Gate B
-    # in automation.py) but never reaches scoring. See
-    # check_clean_confirming_rules().
     hybrid = compute_hybrid_score(ml_proba, hard["hard_rule_flag"], soft["soft_score"])
     return {**hard, **clean, **soft, **hybrid}

@@ -11,19 +11,11 @@ from backend.config import settings
 from backend.database import SessionLocal
 from backend.findings import build_findings, txn_summary_text
 
-# In-memory guard against double-generation: a single case is generated at
-# most once, whether triggered proactively (case creation) or lazily (Case
-# Detail open finding no report yet). Process-local — fine for the single
-# uvicorn worker this app runs as; a restart mid-generation just means the
-# next request re-triggers it once, which is an acceptable trade-off.
 _generating_case_ids: set[int] = set()
 _lock = threading.Lock()
 
 
 def generate_and_store_report(case_id: int) -> None:
-    """Runs in a FastAPI BackgroundTask, after the triggering response has
-    already been sent — must not touch the request's db session (it's
-    closed by then), so it opens its own."""
     db = SessionLocal()
     try:
         already = db.query(m.LlmReport).filter(m.LlmReport.case_id == case_id).first()
@@ -53,10 +45,6 @@ def generate_and_store_report(case_id: int) -> None:
 
 
 def ensure_report_generation(case_id: int, background_tasks: BackgroundTasks, db: Session) -> str:
-    """Schedules report generation if needed; returns 'ready' if a report
-    already exists, otherwise 'generating'. Safe to call from multiple
-    places (proactive case creation, lazy Case Detail fetch) — never
-    schedules a second generation for the same case."""
     existing = db.query(m.LlmReport).filter(m.LlmReport.case_id == case_id).first()
     if existing is not None:
         return "ready"

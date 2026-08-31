@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart2, Target, TrendingUp, Activity, GitCompareArrows, Cpu } from "lucide-react";
+import { BarChart2, Target, TrendingUp, Activity, GitCompareArrows, Cpu, Info, LineChart } from "lucide-react";
 import { getModelInfo, reportAssetUrl } from "../api.js";
+import PageHeader from "../components/PageHeader.jsx";
 
 export default function Evaluation() {
   const [info, setInfo] = useState(null);
@@ -22,8 +23,19 @@ export default function Evaluation() {
 
   return (
     <div>
-      <h1>Model Evaluation</h1>
-      <p className="subtitle">Calibration, comparison, and explainability metrics</p>
+      <PageHeader
+        icon={LineChart}
+        eyebrow="System"
+        title="Model Evaluation"
+        subtitle="Calibration, comparison, and explainability metrics"
+        tone="gray"
+      />
+
+      <p className="note honesty-banner">
+        <Info size={13} /> All metrics on this page are from model training and calibration
+        (held-out test set, dated per card) - not live operational performance. For live
+        automation behavior, see <Link to="/automation">Automation Status</Link>.
+      </p>
 
       <div className="card">
         <h2><Target size={16} /> Model Comparison (Test Set)</h2>
@@ -35,10 +47,10 @@ export default function Evaluation() {
             <tr><th>PR-AUC</th><td>{baseline["PR-AUC"]}</td><td>{test["PR-AUC"]}</td></tr>
             <tr><th>ROC-AUC</th><td>{baseline["ROC-AUC"]}</td><td>{test["ROC-AUC"]}</td></tr>
             <tr><th>F1</th><td>{baseline["F1"]}</td><td>{test["F1"]}</td></tr>
-            <tr><th>Precision</th><td>—</td><td>{test["Precision"]}</td></tr>
-            <tr><th>Recall</th><td>—</td><td>{test["Recall"]}</td></tr>
-            <tr><th>FPR</th><td>—</td><td>{test["FPR"]}</td></tr>
-            <tr><th>FNR</th><td>—</td><td>{test["FNR"]}</td></tr>
+            <tr><th>Precision</th><td> - </td><td>{test["Precision"]}</td></tr>
+            <tr><th>Recall</th><td> - </td><td>{test["Recall"]}</td></tr>
+            <tr><th>FPR</th><td> - </td><td>{test["FPR"]}</td></tr>
+            <tr><th>FNR</th><td> - </td><td>{test["FNR"]}</td></tr>
           </tbody>
         </table>
       </div>
@@ -64,10 +76,10 @@ export default function Evaluation() {
             <tr><th>Calibration Set</th><td>{cal.cal_set} ({cal.n_cal?.toLocaleString("en-US")} samples)</td></tr>
             <tr><th>Calibrated At</th><td>{cal.calibrated_at && new Date(cal.calibrated_at).toLocaleString("en-US")}</td></tr>
             {Object.entries(cal.brier_scores || {}).map(([k, v]) => (
-              <tr key={k}><th>Brier — {k}</th><td>{v}</td></tr>
+              <tr key={k}><th>Brier - {k}</th><td>{v}</td></tr>
             ))}
             {Object.entries(cal.bss || {}).map(([k, v]) => (
-              <tr key={`bss-${k}`}><th>Brier Skill Score — {k}</th><td>{v >= 0 ? "+" : ""}{v}</td></tr>
+              <tr key={`bss-${k}`}><th>Brier Skill Score - {k}</th><td>{v >= 0 ? "+" : ""}{v}</td></tr>
             ))}
           </tbody>
         </table>
@@ -95,8 +107,8 @@ export default function Evaluation() {
       </div>
 
       <p className="note">
-        AI #2's precedent suggestions and automation behavior are tracked on the{" "}
-        <Link to="/automation">Automation Status</Link> page, not here — this page covers the
+        Precedent Analysis suggestions and automation behavior are tracked on the{" "}
+        <Link to="/automation">Automation Status</Link> page, not here - this page covers the
         scoring model only.
       </p>
     </div>

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { Bot, ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
-import { getCases } from "../../api.js";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Bot, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Filter, RotateCcw, Search,
+  SlidersHorizontal,
+} from "lucide-react";
+import { exportCasesCsvUrl, exportCasesXlsxUrl, getCaseFilterOptions, getCases } from "../../api.js";
 import RiskBadge from "../../components/RiskBadge.jsx";
 
-// Ported byte-for-byte from CaseQueue.jsx (Aşama 4.2.2) — same state shape,
-// same GET /cases params, same pagination math. Only the rendering below is
-// adapted for a narrow column instead of a full-page table.
 const STATUS_LABELS = {
   OPEN: "Open",
   CLOSED: "Closed",
@@ -14,26 +14,48 @@ const STATUS_LABELS = {
 };
 
 const PAGE_SIZE = 50;
+const DEFAULT_SORT = "hybrid_score";
+const AMOUNT_DEBOUNCE_MS = 400;
+
+const PANEL_FILTER_KEYS = ["type", "country", "date_from", "date_to", "amount_min", "amount_max"];
 
 export default function CaseList({ selectedCaseId, refreshToken }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [status, setStatus] = useState("");
-  const [riskBand, setRiskBand] = useState("");
-  const [sort, setSort] = useState("hybrid_score");
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [countryOptions, setCountryOptions] = useState([]);
   const listRef = useRef(null);
 
+  const status = searchParams.get("status") || "";
+  const riskBand = searchParams.get("risk_band") || "";
+  const sort = searchParams.get("sort") || DEFAULT_SORT;
+  const q = searchParams.get("q") || "";
+  const type = searchParams.get("type") || "";
+  const country = searchParams.get("country") || "";
+  const dateFrom = searchParams.get("date_from") || "";
+  const dateTo = searchParams.get("date_to") || "";
+  const amountMin = searchParams.get("amount_min") || "";
+  const amountMax = searchParams.get("amount_max") || "";
+
+  const [search, setSearch] = useState(q);
+  const [amountMinDraft, setAmountMinDraft] = useState(amountMin);
+  const [amountMaxDraft, setAmountMaxDraft] = useState(amountMax);
+
+  useEffect(() => setSearch(q), [q]);
+  useEffect(() => setAmountMinDraft(amountMin), [amountMin]);
+  useEffect(() => setAmountMaxDraft(amountMax), [amountMax]);
+
+  useEffect(() => {
+    getCaseFilterOptions().then((res) => setCountryOptions(res.countries)).catch(() => setCountryOptions([]));
+  }, []);
+
+  const filterKey = [status, riskBand, sort, q, type, country, dateFrom, dateTo, amountMin, amountMax].join("|");
   useEffect(() => {
     setOffset(0);
-  }, [status, riskBand, sort, q]);
+  }, [filterKey]);
 
-  // Scroll the selected row into view when it's already on the loaded page
-  // (e.g. arriving via a deep link or a Dashboard/Simulation link) —
-  // "nearest" only moves the pane if the row is actually out of view, so
-  // it never fights a scroll position the analyst set themselves.
   useEffect(() => {
     if (!selectedCaseId || !result) return;
     listRef.current
@@ -44,19 +66,56 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
   useEffect(() => {
     let cancelled = false;
     setResult((prev) => (prev ? { ...prev, loading: true } : null));
-    getCases({ status, risk_band: riskBand, sort, order: "desc", q, limit: PAGE_SIZE, offset })
+    getCases({
+      status, risk_band: riskBand, sort, order: "desc", q, limit: PAGE_SIZE, offset,
+      type, country, date_from: dateFrom, date_to: dateTo, amount_min: amountMin, amount_max: amountMax,
+    })
       .then((res) => { if (!cancelled) setResult(res); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-    // refreshToken bumps after a decision/confirm/reject/reopen succeeds in
-    // CaseDetailPanel (via TriageLayout's onCaseChanged) — refetches this
-    // list without a manual page reload.
-  }, [status, riskBand, sort, q, offset, refreshToken]);
+  }, [filterKey, offset, refreshToken]);
+
+  useEffect(() => {
+    if (amountMinDraft === amountMin) return;
+    const t = setTimeout(() => setParam("amount_min", amountMinDraft), AMOUNT_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [amountMinDraft]);
+  useEffect(() => {
+    if (amountMaxDraft === amountMax) return;
+    const t = setTimeout(() => setParam("amount_max", amountMaxDraft), AMOUNT_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [amountMaxDraft]);
+
+  function setParam(key, value, defaultValue = "") {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value && value !== defaultValue) next.set(key, value); else next.delete(key);
+      return next;
+    }, { replace: true });
+  }
 
   function handleSearchSubmit(e) {
     e.preventDefault();
-    setQ(search.trim());
+    setParam("q", search.trim());
   }
+
+  function clearPanelFilters() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const key of PANEL_FILTER_KEYS) next.delete(key);
+      return next;
+    }, { replace: true });
+  }
+
+  function caseHref(caseId) {
+    const next = new URLSearchParams(searchParams);
+    next.set("case", caseId);
+    return `/triage?${next.toString()}`;
+  }
+
+  const activeFilterCount = PANEL_FILTER_KEYS.filter((k) =>
+    k === "amount_min" ? amountMinDraft : k === "amount_max" ? amountMaxDraft : searchParams.get(k)
+  ).length;
 
   const cases = result?.items;
   const total = result?.total ?? 0;
@@ -70,7 +129,7 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
       <div className="triage-toolbar">
         <label>
           <span className="triage-toolbar-label-text"><Filter size={13} /> Status</span>
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select value={status} onChange={(e) => setParam("status", e.target.value)}>
             <option value="">All</option>
             <option value="OPEN">Open</option>
             <option value="CLOSED">Closed</option>
@@ -79,7 +138,7 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
         </label>
         <label>
           <span className="triage-toolbar-label-text">Risk</span>
-          <select value={riskBand} onChange={(e) => setRiskBand(e.target.value)}>
+          <select value={riskBand} onChange={(e) => setParam("risk_band", e.target.value)}>
             <option value="">All</option>
             <option value="RED">Red</option>
             <option value="GRAY">Gray</option>
@@ -88,7 +147,7 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
         </label>
         <label>
           <span className="triage-toolbar-label-text">Sort by</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+          <select value={sort} onChange={(e) => setParam("sort", e.target.value, DEFAULT_SORT)}>
             <option value="hybrid_score">Highest risk</option>
             <option value="created_at">Newest</option>
           </select>
@@ -102,7 +161,85 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </form>
+        <button
+          type="button"
+          className="pagination-btn triage-filters-toggle"
+          style={filtersOpen || activeFilterCount > 0 ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          <SlidersHorizontal size={13} />
+          More Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+        </button>
+        <a
+          className="pagination-btn"
+          href={exportCasesCsvUrl({
+            status, risk_band: riskBand, q, type, country,
+            date_from: dateFrom, date_to: dateTo, amount_min: amountMin, amount_max: amountMax,
+          })}
+        >
+          <Download size={13} /> Export CSV
+        </a>
+        <a
+          className="pagination-btn"
+          href={exportCasesXlsxUrl({
+            status, risk_band: riskBand, q, type, country,
+            date_from: dateFrom, date_to: dateTo, amount_min: amountMin, amount_max: amountMax,
+          })}
+        >
+          <FileSpreadsheet size={13} /> Export Excel
+        </a>
       </div>
+
+      {filtersOpen && (
+        <div className="triage-filters-panel">
+          <label>
+            <span className="triage-toolbar-label-text">Transaction Type</span>
+            <select value={type} onChange={(e) => setParam("type", e.target.value)}>
+              <option value="">All</option>
+              <option value="TRANSFER">Transfer</option>
+              <option value="CASH_OUT">Cash-Out</option>
+            </select>
+          </label>
+          <label>
+            <span className="triage-toolbar-label-text">Login Country</span>
+            <select value={country} onChange={(e) => setParam("country", e.target.value)}>
+              <option value="">All</option>
+              {countryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="triage-toolbar-label-text">Date From</span>
+            <input type="date" value={dateFrom} onChange={(e) => setParam("date_from", e.target.value)} />
+          </label>
+          <label>
+            <span className="triage-toolbar-label-text">Date To</span>
+            <input type="date" value={dateTo} onChange={(e) => setParam("date_to", e.target.value)} />
+          </label>
+          <label>
+            <span className="triage-toolbar-label-text">Amount Min</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="e.g. 100000"
+              value={amountMinDraft}
+              onChange={(e) => setAmountMinDraft(e.target.value)}
+            />
+          </label>
+          <label>
+            <span className="triage-toolbar-label-text">Amount Max</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="e.g. 5000000"
+              value={amountMaxDraft}
+              onChange={(e) => setAmountMaxDraft(e.target.value)}
+            />
+          </label>
+          <button type="button" className="pagination-btn triage-filters-clear" onClick={clearPanelFilters} disabled={activeFilterCount === 0}>
+            <RotateCcw size={12} /> Clear Filters
+          </button>
+        </div>
+      )}
 
       {error && <p className="error">Error: {error}</p>}
       {!cases && !error && <p className="loading">Loading</p>}
@@ -135,7 +272,7 @@ export default function CaseList({ selectedCaseId, refreshToken }) {
                 <Link
                   key={c.case_id}
                   data-case-id={c.case_id}
-                  to={`/triage?case=${c.case_id}`}
+                  to={caseHref(c.case_id)}
                   className={`triage-row${isSelected ? " triage-row-selected" : ""}`}
                 >
                   {rowContent}

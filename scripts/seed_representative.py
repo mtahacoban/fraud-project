@@ -3,7 +3,7 @@ Feeds the dashboard with the full PaySim dataset's real transaction-type
 distribution (alongside seed_demo_data.py, not instead of it). TRANSFER/CASH_OUT
 is sampled only from the held-out test.parquet (no leakage); other types are
 sampled from the raw CSV and pass through the fast-path type gate as auto-GREEN.
-isFraud/nameOrig/nameDest are deliberately not sent — this simulates real-time
+isFraud/nameOrig/nameDest are deliberately not sent - this simulates real-time
 traffic.
 
 Usage (with the backend running, from the project root):
@@ -48,7 +48,7 @@ def to_payload(row: pd.Series) -> dict:
         "newbalanceDest": float(row["newbalanceDest"]),
     }
     # test.parquet rows (RISKY_TYPES) carry synthetic fields; rows from the raw
-    # CSV (PAYMENT/CASH_IN/DEBIT) don't have these columns — skip them.
+    # CSV (PAYMENT/CASH_IN/DEBIT) don't have these columns - skip them.
     device_id = row.get("device_id")
     if device_id is not None and not pd.isna(device_id):
         payload["device_id"] = str(device_id)
@@ -71,13 +71,13 @@ def main() -> None:
 
     counts = (type_share * N_TOTAL).round().astype(int).to_dict()
 
-    # Risky types (TRANSFER/CASH_OUT): held-out test set only — leak-free.
+    # Risky types (TRANSFER/CASH_OUT): held-out test set only - leak-free.
     test_df = pd.read_parquet(TEST_PARQUET)
     risky_needed = sum(counts.get(t, 0) for t in RISKY_TYPES)
     risky_pool = test_df[test_df["type"].isin(RISKY_TYPES)]
     risky_sample = risky_pool.sample(n=min(risky_needed, len(risky_pool)), random_state=SEED)
 
-    # Other types: from the raw CSV, proportional by type — these will pass
+    # Other types: from the raw CSV, proportional by type - these will pass
     # through the fast path, the model will never see them.
     other_samples = []
     for t, n in counts.items():

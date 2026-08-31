@@ -1,0 +1,34 @@
+{
+  "model": "xgb_v1",
+  "trained_at": "2026-08-02T16:16:02.020911",
+  "ml_features": [
+    "amount",
+    "step_hour",
+    "errorBalanceOrig",
+    "errorBalanceDest",
+    "is_transfer",
+    "is_cashout"
+  ],
+  "random_state": 42,
+  "scale_pos_weight": 336.3062,
+  "best_iteration": 26,
+  "working_threshold": 0.795322,
+  "val_metrics": {
+    "pr_auc": 0.849788,
+    "roc_auc": 0.99373
+  },
+  "test_metrics": {
+    "PR-AUC": 0.8508,
+    "ROC-AUC": 0.994,
+    "Precision": 0.9021,
+    "Recall": 0.7856,
+    "F1": 0.8398,
+    "FPR": 0.000253,
+    "FNR": 0.2144
+  },
+  "baseline_logreg_test": {
+    "PR-AUC": 0.565,
+    "ROC-AUC": 0.978,
+    "F1": 0.5792
+  }
+}

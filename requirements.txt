@@ -10,7 +10,7 @@ jupyter
 ipykernel
 pyarrow
 
-# Backend — FastAPI + PostgreSQL
+# Backend - FastAPI + PostgreSQL
 fastapi
 uvicorn[standard]
 sqlalchemy
@@ -21,3 +21,6 @@ pydantic-settings
 
 # LLM report generation (Groq, with deterministic fallback)
 groq
+
+# Excel export (write-only, one-shot report generation)
+xlsxwriter

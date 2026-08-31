@@ -1,27 +1,17 @@
 """
 Seeds synthetic-but-realistic analyst decisions on existing OPEN RED/GRAY
-cases, through the real POST /cases/{id}/decision endpoint (not direct DB
-writes) — so seeded decisions go through the exact same OPEN->CLOSED state
-machine as a real analyst decision. Needed to bootstrap the precedent
-engine (AI #2's k-NN suggestion logic): an empty precedent_index can't be
-backfilled, tested, or demoed, and there is currently only one real
-analyst decision in the database.
+cases through the real POST /cases/{id}/decision endpoint, to bootstrap
+the precedent engine (there is otherwise only one real analyst decision in
+the database).
 
-Picks four clusters of visually/rule-similar OPEN cases (same risk_band +
-same triggered hard/soft rule set) and assigns each cluster a decision
-policy — two tight fraud-consensus clusters, one deliberately mixed/
-low-consensus cluster, one tight clean-consensus cluster — so the
-precedent engine's k-NN consensus logic has something meaningful to agree
-or disagree about, not just one flat label everywhere.
+Picks four clusters of similar OPEN cases (same risk_band + rule set) and
+assigns each a decision policy - two fraud-consensus clusters, one mixed/
+low-consensus cluster, one clean-consensus cluster - so the precedent
+engine's k-NN logic has something meaningful to agree or disagree about.
 
 All decisions are tagged analyst_reason_code="seed_cluster_decision" so
-they can always be told apart from real analyst decisions (there is
-exactly one today — case #1943, confirm_fraud, "account_takeover" — never
-touched by this script).
-
-Idempotent: only targets currently-OPEN cases, and the API itself rejects
-(409) deciding an already-CLOSED case — re-running just finds fewer (or
-zero) untouched candidates and does less; it can never double-decide a case.
+they're distinguishable from real ones. Idempotent: only targets OPEN
+cases, and the API rejects deciding an already-CLOSED case.
 
 Usage (with the backend running, from the project root):
     venv/Scripts/python.exe scripts/seed_decisions.py
@@ -56,25 +46,25 @@ CLUSTERS = [
         "key": ("RED", ("drain_account", "ghost_destination", "high_amount_transfer", "night_transaction")),
         "n": 15,
         "weights": {"confirm_fraud": 0.85, "escalate": 0.15},
-        "note": "Full account drain to a zero-history destination at night — matches confirmed fraud pattern.",
+        "note": "Full account drain to a zero-history destination at night - matches confirmed fraud pattern.",
     },
     {
         "key": ("RED", ("ghost_destination", "high_amount_transfer", "night_transaction")),
         "n": 15,
         "weights": {"confirm_fraud": 0.80, "escalate": 0.20},
-        "note": "Ghost destination account, large transfer, night timing — consistent with prior confirmed fraud.",
+        "note": "Ghost destination account, large transfer, night timing - consistent with prior confirmed fraud.",
     },
     {
         "key": ("GRAY", ("drain_account", "high_amount_transfer")),
         "n": 15,
         "weights": {"confirm_fraud": 0.34, "approve_clean": 0.33, "escalate": 0.33},
-        "note": "Large transfer, no hard-rule confirmation — ambiguous; analysts have gone different ways on this pattern.",
+        "note": "Large transfer, no hard-rule confirmation - ambiguous; analysts have gone different ways on this pattern.",
     },
     {
         "key": ("GRAY", ()),
         "n": 15,
         "weights": {"approve_clean": 0.85, "escalate": 0.15},
-        "note": "No rule hits, borderline model score only — usually resolves clean on review.",
+        "note": "No rule hits, borderline model score only - usually resolves clean on review.",
     },
 ]
 

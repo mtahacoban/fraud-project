@@ -16,7 +16,6 @@ ML_FEATURES = ['amount','step_hour','errorBalanceOrig','errorBalanceDest','is_tr
 TARGET, RANDOM_STATE = 'isFraud', 42
 os.makedirs(REPORT_DIR, exist_ok=True); os.makedirs(MODEL_DIR, exist_ok=True)
 
-# --- Data ---
 train_sc  = pd.read_parquet(DATA_DIR + '/train_scaled.parquet')
 val_sc    = pd.read_parquet(DATA_DIR + '/val_scaled.parquet')
 test_sc   = pd.read_parquet(DATA_DIR + '/test_scaled.parquet')
@@ -38,7 +37,6 @@ print(f"Train: {X_train.shape} | fraud: {y_train.mean():.4%}")
 print(f"Val  : {X_val.shape}   | fraud: {y_val.mean():.4%}")
 print(f"Test : {X_test.shape}  | fraud: {y_test.mean():.4%}")
 
-# --- LogReg ---
 print("\n=== 2.1 LogReg ===")
 logreg = LogisticRegression(class_weight='balanced', max_iter=1000, random_state=RANDOM_STATE)
 logreg.fit(X_train_sc, y_train)
@@ -47,7 +45,6 @@ lr_test_proba = logreg.predict_proba(X_test_sc)[:, 1]
 print(f"LogReg Val  PR-AUC: {average_precision_score(y_val,  lr_val_proba):.4f}")
 print(f"LogReg Test PR-AUC: {average_precision_score(y_test, lr_test_proba):.4f}")
 
-# --- XGBoost ---
 print("\n=== 2.2 XGBoost ===")
 neg_count = int((y_train == 0).sum()); pos_count = int((y_train == 1).sum())
 spw = neg_count / pos_count
@@ -68,7 +65,6 @@ print(f"Best round: {best_round}")
 print(f"XGBoost Val  PR-AUC: {average_precision_score(y_val,  xgb_val_proba):.4f}")
 print(f"XGBoost Test PR-AUC: {average_precision_score(y_test, xgb_test_proba):.4f}")
 
-# --- Threshold selection ---
 def f1max_threshold(y_true, y_proba):
     prec, rec, thr = precision_recall_curve(y_true, y_proba)
     denom = prec[:-1] + rec[:-1]
@@ -81,7 +77,6 @@ LR_THR,  lr_val_f1  = f1max_threshold(y_val, lr_val_proba)
 print(f"\nXGBoost F1-max threshold (val): {XGB_THR:.4f}  (val F1={xgb_val_f1:.4f})")
 print(f"LogReg  F1-max threshold (val): {LR_THR:.4f}  (val F1={lr_val_f1:.4f})")
 
-# --- Evaluation ---
 def evaluate(name, y_true, y_proba, thr):
     y_pred = (y_proba >= thr).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
@@ -125,7 +120,6 @@ for k, v in sorted(imp.items(), key=lambda x: -x[1]):
     bar = '#' * int(v * 40)
     print(f"  {k:20s}: {v:.4f}  {bar}")
 
-# Save models
 joblib.dump(xgb_model, MODEL_DIR + '/xgb_v1.pkl')
 joblib.dump(logreg,    MODEL_DIR + '/logreg_v1.pkl')
 

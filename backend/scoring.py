@@ -10,14 +10,8 @@ from backend.config import settings
 from backend.explain import ML_FEATURES, build_explainer, explain_transaction
 from backend.rule_engine import RULE_FIELDS, _THRESHOLD_RED, score_transaction
 
-# Promotes cases that fall under the hybrid threshold (85) but have a very
-# high calibrated probability to RED. A separate, auditable triage layer —
-# the weights/thresholds in rule_engine.py don't change, this only affects
-# priority in the analyst queue.
 HIGH_CONFIDENCE_THRESHOLD = 0.95
-
-# Fraud only occurs in TRANSFER/CASH_OUT. Other types return GREEN directly
-# without ever calling the model or rule engine.
+OVERRIDE_SPREAD = 5.0
 RISKY_TYPES = frozenset({"TRANSFER", "CASH_OUT"})
 
 
@@ -51,6 +45,7 @@ class ScoringEngine:
                 **derived,
                 "hard_rule_hits": [],
                 "hard_rule_flag": False,
+                "clean_rule_hits": [],
                 "soft_rule_hits": [],
                 "soft_score": 0,
                 "ml_score": 0.0,
@@ -81,7 +76,9 @@ class ScoringEngine:
         band_reason = None
         if result["risk_band"] != "RED" and calibrated_proba >= HIGH_CONFIDENCE_THRESHOLD:
             result["risk_band"] = "RED"
-            result["hybrid_score"] = round(max(result["hybrid_score"], _THRESHOLD_RED), 2)
+            result["hybrid_score"] = round(
+                _THRESHOLD_RED + OVERRIDE_SPREAD * (result["hybrid_score"] / _THRESHOLD_RED), 2
+            )
             band_reason = "high_confidence_override"
 
         shap_factors = explain_transaction(self.explainer, ml_row) if include_shap else []

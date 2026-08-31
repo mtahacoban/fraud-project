@@ -14,23 +14,10 @@ def build_explainer(model) -> shap.TreeExplainer:
 
 
 def _extract_shap_row(raw, row_idx: int = 0) -> np.ndarray:
-    # With the currently pinned shap/xgboost versions, TreeExplainer.
-    # shap_values() on this binary XGBClassifier returns a plain
-    # (n_samples, n_features) ndarray for the positive-class margin —
-    # there's no class axis to select, so the plain-ndarray branch below is
-    # already correct and is the only one exercised today (verified by
-    # comparing expected_value + sum(shap_values) against predict_proba on
-    # real cases). The two branches below are defensive for SHAP/model
-    # combinations *not* currently in use:
     if isinstance(raw, list):
-        # Older list-of-per-class-arrays format: index 1 is the positive
-        # (fraud) class, matching predict_proba's column order.
         return np.array(raw[1][row_idx])
     arr = np.array(raw)
     if arr.ndim == 3:
-        # (n_samples, n_features, n_classes) format some newer SHAP/model
-        # combinations use for binary classifiers — select the positive
-        # (fraud) class, the last axis.
         return arr[row_idx, :, -1]
     return arr[row_idx]
 

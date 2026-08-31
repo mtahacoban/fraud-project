@@ -1,6 +1,6 @@
 """
 Backfills precedent_index from every currently-decided case (case.status ==
-"CLOSED") — build_case_vector() + the case's latest analyst decision as the
+"CLOSED") - build_case_vector() + the case's latest analyst decision as the
 label. Fits the precedent feature scaler (models/precedent_scaler.pkl) on
 this same backfill population first, since a fresh scaler needs data to
 fit on; every later vectorization (a brand-new case at query time, a case
@@ -9,10 +9,10 @@ parameters.
 
 Idempotent: add_to_precedent_index() (backend/precedent.py) skips any
 case_id already present in precedent_index, so re-running only adds cases
-decided since the last run — this is also what happens automatically going
+decided since the last run - this is also what happens automatically going
 forward, via the same function wired into the decision endpoint.
 
-Talks to the database directly (like clear_demo_data.py) — does not need
+Talks to the database directly (like clear_demo_data.py) - does not need
 the backend server running.
 
 Usage (from the project root, with venv):
@@ -46,7 +46,7 @@ def main() -> None:
     print(f"Decided (CLOSED) cases available: {len(closed_cases)}")
 
     if not closed_cases:
-        print("Nothing to backfill yet — precedent_index stays empty (cold start).")
+        print("Nothing to backfill yet - precedent_index stays empty (cold start).")
         db.close()
         return
 
@@ -57,13 +57,13 @@ def main() -> None:
     print(f"Already in precedent_index: {len(already_indexed)}; new to backfill: {len(to_index)}")
 
     if not to_index:
-        print("Nothing new — precedent_index is already up to date.")
+        print("Nothing new - precedent_index is already up to date.")
         db.close()
         return
 
     scaler = load_precedent_scaler()
     if scaler is None:
-        print("No scaler yet — fitting a new one on this backfill population...")
+        print("No scaler yet - fitting a new one on this backfill population...")
         raw_vectors = []
         for c in to_index:
             txn = db.get(m.Transaction, c.transaction_id)

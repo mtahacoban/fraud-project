@@ -2,7 +2,7 @@
 Cross-tabulation of the real isFraud label × the risk_band assigned by the backend.
 
 MODE = "operational"  → looks up the results seed_representative.py wrote to
-    the DB by natural key and cross-tabulates them. Small N — sanity check only.
+    the DB by natural key and cross-tabulates them. Small N - sanity check only.
 
 MODE = "offline_full" → scores the entire test.parquet offline with the same
     model + rule engine as the backend and runs a serving-parity comparison
@@ -73,7 +73,7 @@ def run_operational() -> None:
     print(f"Reproduced risky sample: {len(risky_sample)} rows "
           f"(fraud={int(risky_sample['isFraud'].sum())})")
 
-    # The transactions.MAX(id)+1 right before this run — when multiple seed runs
+    # The transactions.MAX(id)+1 right before this run - when multiple seed runs
     # share the same random_state, the natural-key join needs the range
     # restricted so it doesn't also pick up rows from earlier runs.
     MIN_TXN_ID = 1054
@@ -102,15 +102,15 @@ def run_operational() -> None:
     n_matched = merged["risk_band"].notna().sum()
     n_dupe = len(merged) - len(risky_sample)
     print(f"Matched: {n_matched}/{len(risky_sample)}"
-          + (f"  [WARNING: {n_dupe} extra rows — multiple matches found]" if n_dupe else ""))
+          + (f"  [WARNING: {n_dupe} extra rows - multiple matches found]" if n_dupe else ""))
 
     merged = merged.dropna(subset=["risk_band"])
     merged["label"] = merged["isFraud"].map({1: "real fraud", 0: "real clean"})
 
     print_confusion(merged, "label", "risk_band",
-                     f"OPERATIONAL — risky types, seed_representative.py (N={len(merged)}, "
-                     f"fraud={int((merged['label']=='real fraud').sum())}) — read from DB")
-    print("\n[Note] This N carries no statistical power for a threshold decision — see MODE='offline_full'.")
+                     f"OPERATIONAL - risky types, seed_representative.py (N={len(merged)}, "
+                     f"fraud={int((merged['label']=='real fraud').sum())}) - read from DB")
+    print("\n[Note] This N carries no statistical power for a threshold decision - see MODE='offline_full'.")
 
 
 def run_offline_full() -> None:
@@ -166,7 +166,7 @@ def run_offline_full() -> None:
     )
 
     print_confusion(df, "label", "risk_band",
-                     f"OFFLINE FULL TEST SET (N={len(df):,}, fraud={int(df['isFraud'].sum())}) — "
+                     f"OFFLINE FULL TEST SET (N={len(df):,}, fraud={int(df['isFraud'].sum())}) - "
                      f"real label × risk_band")
 
     with open("models/xgb_v1_meta.json", encoding="utf-8") as f:
@@ -195,10 +195,10 @@ def run_offline_full() -> None:
         diff = r - s
         max_abs_diff = max(max_abs_diff, abs(diff))
         print(f"{k:<12}{s:>18}{r:>24}{diff:>+12.6f}")
-    verdict = "PARITY HOLDS" if max_abs_diff < 0.001 else "DEVIATION — investigate"
+    verdict = "PARITY HOLDS" if max_abs_diff < 0.001 else "DEVIATION - investigate"
     print(f"\nLargest absolute diff: {max_abs_diff:.6f} → {verdict}")
 
-    # RED = hard_rule_flag OR hybrid_score>=85 — two different triggers,
+    # RED = hard_rule_flag OR hybrid_score>=85 - two different triggers,
     # so break down the RED band by hard-rule × calibrated p>=0.95.
     red = df[df["risk_band"] == "RED"].copy()
     red["p95"] = red["calibrated_proba"] >= 0.95

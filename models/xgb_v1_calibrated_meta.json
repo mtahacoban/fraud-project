@@ -1,0 +1,19 @@
+{
+  "base_model": "xgb_v1",
+  "method": "isotonic",
+  "calibrated_at": "2026-08-04T21:32:33.926384",
+  "cal_set": "val",
+  "n_cal": 554082,
+  "brier_scores": {
+    "baseline": 0.00295468,
+    "raw_xgb": 0.04662822,
+    "isotonic": 0.00078389,
+    "sigmoid": 0.00089082
+  },
+  "bss": {
+    "raw_xgb": -14.781151,
+    "isotonic": 0.734695,
+    "sigmoid": 0.698506
+  },
+  "note": "The hybrid score is not calibrated - the fixed-85 step would distort the curve. The calibrated probability is used for the Automation Eligibility confidence gate."
+}

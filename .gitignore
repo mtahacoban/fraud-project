@@ -2,29 +2,41 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
 .ipynb_checkpoints/
+.pytest_cache/
+.coverage
 
-# Data & models (large / sensitive)
+# Raw PaySim data (large, not ours to redistribute). models/ is committed on purpose,
+# small enough and lets a fresh clone run without retraining.
 data/
-models/
-*.pkl
 *.parquet
+*.csv
 
 # Local SQLite DB (development)
 *.db
+*.db-journal
+*.sqlite
+*.sqlite3
 
-# Reports (generated images) — keep folder, ignore outputs
-reports/*.png
+# Generated report images are committed (small, needed for /evaluation to render on a fresh clone)
 reports/*.jpg
 
 # Secrets
 .env
 *.env
+.env.local
+*.key
 
 # Node / frontend
 node_modules/
 dist/
 
-# OS / editor
+# IDE
 .DS_Store
 .vscode/
+.idea/
+
+# Temp
+*.log
+temp/

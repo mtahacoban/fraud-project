@@ -22,7 +22,6 @@ ML_FEATURES = ["amount", "step_hour", "errorBalanceOrig",
 TARGET = "isFraud"
 os.makedirs(REPORT_DIR, exist_ok=True)
 
-# ── Load ────────────────────────────────────────────────────────────────────
 print("Loading model and data...")
 xgb_model = joblib.load(MODEL_DIR + "/xgb_v1.pkl")
 test_raw  = pd.read_parquet(DATA_DIR + "/test.parquet")
@@ -31,23 +30,19 @@ X_test    = test_raw[ML_FEATURES].values
 
 print(f"Test set: {len(test_raw):,}  |  Fraud: {y_test.sum():,}")
 
-# ── Explainer ────────────────────────────────────────────────────────────────
 print("Building TreeExplainer...")
 explainer = build_explainer(xgb_model)
 
-# ── Sample selection ─────────────────────────────────────────────────────────
 # Fraud sample: NO hard rule (ghost_destination=False) → an interesting ML explanation
 fraud_all  = test_raw.index[test_raw[TARGET] == 1].tolist()
 ghost_mask = (test_raw["oldbalanceDest"] == 0) & (test_raw["newbalanceDest"] == 0)
 gray_fraud = [i for i in fraud_all if not ghost_mask.loc[i]]
 demo_fraud = gray_fraud[0]
 
-# Clean sample
 demo_clean = test_raw.index[test_raw[TARGET] == 0][0]
 
-# ── Single-transaction explanation (API demo) ────────────────────────────────
 print("\n" + "=" * 60)
-print("SINGLE TRANSACTION EXPLANATION — explain_transaction() API")
+print("SINGLE TRANSACTION EXPLANATION - explain_transaction() API")
 print("=" * 60)
 
 for label, idx in [("FRAUD (GRAY zone, caught by ML)", demo_fraud),
@@ -65,7 +60,6 @@ for label, idx in [("FRAUD (GRAY zone, caught by ML)", demo_fraud),
         print(f"    {arrow} {f['feature']:22s}  val={f['value']:>12.2f}"
               f"  shap={f['shap_value']:+.4f}")
 
-# ── Waterfall charts ──────────────────────────────────────────────────────────
 def plot_waterfall(idx, label, fname):
     row   = test_raw.loc[idx]
     fvals = {f: row[f] for f in ML_FEATURES}
@@ -93,10 +87,9 @@ def plot_waterfall(idx, label, fname):
     print(f"  -> reports/{fname}")
 
 print("\nWaterfall charts...")
-plot_waterfall(demo_fraud, "Fraud Sample — SHAP Explanation", "shap_waterfall_fraud.png")
-plot_waterfall(demo_clean, "Clean Sample — SHAP Explanation", "shap_waterfall_clean.png")
+plot_waterfall(demo_fraud, "Fraud Sample - SHAP Explanation", "shap_waterfall_fraud.png")
+plot_waterfall(demo_clean, "Clean Sample - SHAP Explanation", "shap_waterfall_clean.png")
 
-# ── Global SHAP (sample) ──────────────────────────────────────────────────────
 print("\nGlobal SHAP (2000-sample)...")
 rng = np.random.default_rng(42)
 sample_idx = rng.choice(len(X_test), size=2_000, replace=False)
@@ -106,26 +99,23 @@ y_sample   = y_test[sample_idx]
 shap_matrix = compute_shap_matrix(explainer, X_sample)
 print(f"  SHAP matrix: {shap_matrix.shape}")
 
-# Beeswarm
 plt.figure(figsize=(9, 5))
 shap.summary_plot(shap_matrix, X_sample, feature_names=ML_FEATURES, show=False)
-plt.title("Global SHAP — Beeswarm (2,000-sample)", fontsize=13)
+plt.title("Global SHAP - Beeswarm (2,000-sample)", fontsize=13)
 plt.tight_layout()
 plt.savefig(REPORT_DIR + "/shap_beeswarm.png", dpi=120, bbox_inches="tight")
 plt.close()
 print("  -> reports/shap_beeswarm.png")
 
-# Bar (mean |SHAP|)
 plt.figure(figsize=(7, 4))
 shap.summary_plot(shap_matrix, X_sample, feature_names=ML_FEATURES,
                   plot_type="bar", show=False)
-plt.title("Global SHAP — Mean |Contribution|", fontsize=13)
+plt.title("Global SHAP - Mean |Contribution|", fontsize=13)
 plt.tight_layout()
 plt.savefig(REPORT_DIR + "/shap_feature_importance.png", dpi=120, bbox_inches="tight")
 plt.close()
 print("  -> reports/shap_feature_importance.png")
 
-# Fraud vs Clean mean |SHAP| comparison
 fraud_mask  = y_sample == 1
 mean_abs_fraud = np.abs(shap_matrix[fraud_mask]).mean(axis=0)
 mean_abs_clean = np.abs(shap_matrix[~fraud_mask]).mean(axis=0)
@@ -136,14 +126,13 @@ ax.bar(x - w/2, mean_abs_fraud, w, label="Fraud", color="tomato",    alpha=0.85)
 ax.bar(x + w/2, mean_abs_clean, w, label="Clean", color="steelblue", alpha=0.85)
 ax.set_xticks(x); ax.set_xticklabels(ML_FEATURES, rotation=20, ha="right", fontsize=10)
 ax.set_ylabel("Mean |SHAP|")
-ax.set_title("Fraud vs Clean — Mean SHAP Contribution")
+ax.set_title("Fraud vs Clean - Mean SHAP Contribution")
 ax.legend(); ax.grid(axis="y", alpha=0.3)
 plt.tight_layout()
 plt.savefig(REPORT_DIR + "/shap_fraud_vs_clean.png", dpi=120)
 plt.close()
 print("  -> reports/shap_fraud_vs_clean.png")
 
-# ── Summary ────────────────────────────────────────────────────────────────
 mean_abs = np.abs(shap_matrix).mean(axis=0)
 ranked   = sorted(zip(ML_FEATURES, mean_abs), key=lambda x: -x[1])
 

@@ -4,8 +4,6 @@ from sqlalchemy.orm import Session
 
 from backend import db_models as m
 
-# Mirrors frontend/src/pages/CaseDetail.jsx FEATURE_LABELS so findings read
-# consistently with what the analyst already sees on screen.
 FEATURE_LABELS: dict[str, str] = {
     "amount": "the transaction amount",
     "step_hour": "the hour of day the transaction occurred",
@@ -29,10 +27,6 @@ BAND_REASON_LABELS: dict[str, str] = {
 
 TOP_N_SHAP = 5
 
-# shap_explanations.direction is verified correct (expected_value +
-# sum(shap_values) == predict_proba on real cases). Exact-match only; any
-# value outside this map falls back to neutral wording below instead of
-# guessing.
 _DIRECTION_VERBS: dict[str, str] = {
     "increasing": "increased",
     "decreasing": "decreased",
@@ -40,11 +34,8 @@ _DIRECTION_VERBS: dict[str, str] = {
 
 
 def _shap_sentence(feature_name: str, feature_value: float, direction: str, rank: int) -> str:
-    # Magnitude ranking (abs shap_value) drives *which* factors are listed;
-    # the risk band/hybrid score (appended below) stays the authoritative
-    # verdict — this sentence only adds supporting color on a single factor.
     label = FEATURE_LABELS.get(feature_name, feature_name)
-    tag = " — most influential factor" if rank == 0 else ""
+    tag = " - most influential factor" if rank == 0 else ""
     verb = _DIRECTION_VERBS.get(direction)
     if verb is None:
         return f"Key factor: {label} (value: {feature_value:.2f}){tag}."
@@ -58,10 +49,6 @@ def _rule_sentence(rule_name: str, rule_type: str) -> str:
 
 
 def build_findings(case: m.Case, db: Session) -> list[str]:
-    """Deterministic, human-readable findings for a case — SHAP top-5 +
-    triggered rules + risk band + calibrated probability. No LLM involved;
-    this list is itself a valid report and is what the LLM is restricted to
-    rephrasing (never adding to) in a later step."""
     txn_id = case.transaction_id
 
     score = (
@@ -70,8 +57,6 @@ def build_findings(case: m.Case, db: Session) -> list[str]:
         .order_by(m.Score.id.desc())
         .first()
     )
-    # rule_type="clean" is deliberately excluded — a gate-only signal for
-    # automation.py, not a risk factor an LLM report should cite.
     rule_hits = (
         db.query(m.RuleHit)
         .filter(m.RuleHit.transaction_id == txn_id, m.RuleHit.rule_type.in_(["hard", "soft"]))
@@ -102,9 +87,6 @@ def build_findings(case: m.Case, db: Session) -> list[str]:
 
 
 def txn_summary_text(txn: m.Transaction) -> str:
-    """Short one-line transaction description used as LLM prompt context —
-    shared by report_worker.py and precedent.py's precedent explanation so
-    both describe "this transaction" the same way."""
     return (
         f"{txn.type} of {txn.amount:.2f}, sender balance {txn.oldbalance_org:.2f} -> "
         f"{txn.newbalance_orig:.2f}, recipient balance {txn.oldbalance_dest:.2f} -> "

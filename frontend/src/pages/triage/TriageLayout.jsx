@@ -1,20 +1,24 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ListChecks } from "lucide-react";
+import PageHeader from "../../components/PageHeader.jsx";
 import CaseList from "./CaseList.jsx";
 import CaseDetailPanel from "./CaseDetailPanel.jsx";
 
 export default function TriageLayout() {
   const [searchParams] = useSearchParams();
   const selectedCaseId = searchParams.get("case");
-  // Bumped by CaseDetailPanel's onCaseChanged after a decision/confirm/
-  // reject/reopen succeeds — included in CaseList's GET /cases effect
-  // dependencies, so the list refetches without a manual page reload.
   const [refreshToken, setRefreshToken] = useState(0);
 
   return (
     <div>
-      <h1>Triage</h1>
-      <p className="subtitle">Review the case queue and investigate a case side by side</p>
+      <PageHeader
+        icon={ListChecks}
+        eyebrow="Operations"
+        title="Triage"
+        subtitle="Review the case queue and investigate a case side by side"
+        tone="red"
+      />
 
       <div className="triage-layout">
         <div className="triage-list-pane">

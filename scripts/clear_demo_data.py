@@ -6,7 +6,7 @@ single transaction.
 
 SQLite foreign keys aren't enforced in this project (no ondelete=CASCADE,
 no PRAGMA foreign_keys=ON), so a bare `DELETE FROM transactions WHERE
-is_demo=true` would leave orphaned child rows — this script deletes
+is_demo=true` would leave orphaned child rows - this script deletes
 children first instead.
 
 Usage (from the project root, with venv):
@@ -50,7 +50,7 @@ def main() -> None:
     print(f"Demo-linked cases: {n_cases}")
 
     if not args.yes:
-        print("\nDry run only — pass --yes to actually delete.")
+        print("\nDry run only - pass --yes to actually delete.")
         con.close()
         return
 

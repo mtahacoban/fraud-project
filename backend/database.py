@@ -26,15 +26,6 @@ def get_db():
 
 
 def _add_columns_if_missing(table: str, column_ddls: dict[str, str]) -> None:
-    """Adds each {column: ddl} pair to `table` via ALTER TABLE ... ADD
-    COLUMN, skipping columns that already exist. No-op if the table itself
-    doesn't exist yet (nothing to migrate — Base.metadata.create_all() will
-    create it with the column already in db_models.py). Idempotent: safe to
-    call on every startup, a no-op once every column exists. Plain ADD
-    COLUMN, works on SQLite and PostgreSQL. Shared by every ensure_*_column
-    migration below; each caller's column_ddls dict is the single source of
-    truth for that column's exact type/default — this helper never invents
-    a DDL of its own."""
     inspector = inspect(engine)
     if table not in inspector.get_table_names():
         return
@@ -48,11 +39,6 @@ def _add_columns_if_missing(table: str, column_ddls: dict[str, str]) -> None:
 
 
 def _drop_columns_if_present(table: str, columns: list[str]) -> None:
-    """Drops each named column from `table` via ALTER TABLE ... DROP
-    COLUMN, skipping columns that are already gone. No-op if the table
-    itself doesn't exist. Idempotent: safe to call on every startup. Plain
-    DROP COLUMN — supported by SQLite >= 3.35 and any current PostgreSQL.
-    Shared by every ensure_*_dropped migration below."""
     inspector = inspect(engine)
     if table not in inspector.get_table_names():
         return
@@ -66,21 +52,10 @@ def _drop_columns_if_present(table: str, columns: list[str]) -> None:
 
 
 def ensure_llm_reports_source_column() -> None:
-    """Adds llm_reports.source if missing."""
     _add_columns_if_missing("llm_reports", {"source": "VARCHAR(16)"})
 
 
 def ensure_precedent_index_label_width() -> None:
-    """Widens precedent_index.label to VARCHAR(32) — it was declared
-    VARCHAR(8), too narrow for values like "confirm_fraud" (13 chars).
-    SQLite ignores declared VARCHAR length, so this was silently fine
-    there, but PostgreSQL enforces it and would reject/truncate inserts.
-
-    Must run before Base.metadata.create_all(): SQLite has no ALTER
-    COLUMN, so a too-narrow existing table is dropped here and rebuilt
-    fresh by create_all() right after — only safe because the table is
-    verified empty first, never assumed. PostgreSQL uses ALTER COLUMN TYPE
-    directly, no drop needed."""
     inspector = inspect(engine)
     if "precedent_index" not in inspector.get_table_names():
         return
@@ -96,8 +71,6 @@ def ensure_precedent_index_label_width() -> None:
         if engine.dialect.name == "sqlite":
             row_count = conn.execute(text("SELECT COUNT(*) FROM precedent_index")).scalar()
             if row_count:
-                # Real data present — don't drop it, leave the column as-is
-                # rather than guess at a migration.
                 return
             conn.execute(text("DROP TABLE precedent_index"))
         else:
@@ -105,29 +78,13 @@ def ensure_precedent_index_label_width() -> None:
 
 
 def ensure_precedent_explanation_pool_size_column() -> None:
-    """Adds precedent_explanations.pool_size_at_generation if missing.
-    DEFAULT 0 backfills existing rows as immediately stale (0 is always
-    less than any real pool size), which is the correct self-healing
-    behavior — they simply regenerate on next view."""
     _add_columns_if_missing("precedent_explanations", {"pool_size_at_generation": "INTEGER DEFAULT 0"})
 
 
 def ensure_analyst_decisions_ai2_suggestion_column() -> None:
-    """Adds analyst_decisions.ai2_suggested_decision — what the precedent
-    engine suggested for a case at the moment it was decided (NULL = no
-    suggestion existed, whether cold start or the confidence gates weren't
-    met). Captured going forward in main.py's decide_case(); older
-    decisions stay NULL rather than being retroactively guessed, since the
-    suggestion pool's state at that time can't be reconstructed."""
     _add_columns_if_missing("analyst_decisions", {"ai2_suggested_decision": "VARCHAR(32)"})
 
 
-# automation_policy_versions predates the multi-gate automation design.
-# fraud_similarity_threshold/clean_similarity_threshold/hard_rule_required
-# are reused from that original design (their names already fit); everything
-# below is genuinely new. (Its other original columns — green_threshold,
-# red_threshold, block_threshold — were dropped entirely; see
-# ensure_automation_policy_legacy_columns_dropped().)
 _AUTOMATION_POLICY_NEW_COLUMNS: dict[str, str] = {
     "mode": "VARCHAR(16) DEFAULT 'off'",
     "min_precedent_count": "INTEGER",
@@ -141,25 +98,10 @@ _AUTOMATION_POLICY_NEW_COLUMNS: dict[str, str] = {
 
 
 def ensure_automation_policy_columns() -> None:
-    """Adds every automation_policy_versions column the multi-gate policy
-    design needs, one ADD COLUMN per missing column."""
     _add_columns_if_missing("automation_policy_versions", _AUTOMATION_POLICY_NEW_COLUMNS)
 
 
 def ensure_default_automation_policy() -> None:
-    """Seeds automation_policy_versions v1 if the table is completely
-    empty — cold-start safety so a fresh deploy always has an active
-    policy to read. Never touches the table if any row already exists;
-    this is a one-time bootstrap, not something that overwrites deliberate
-    policy changes. Starts in "shadow" mode (observe only, never propose);
-    thresholds are intentionally stricter than the precedent engine's own
-    suggestion gates, since automating a decision demands a higher bar
-    than merely suggesting one.
-
-    Uses the ORM (not raw SQL) so columns without an explicit value here
-    (created_at, auto_triggered) get their Python-side defaults applied
-    automatically. Imports db_models locally to avoid a circular import
-    (db_models imports Base from this module)."""
     from backend import db_models as m
 
     inspector = inspect(engine)
@@ -184,7 +126,7 @@ def ensure_default_automation_policy() -> None:
             circuit_breaker_max_reversal_rate=0.20,
             circuit_breaker_min_confirmations=5,
             notes=(
-                "Initial policy — starts in shadow mode (observe only, no "
+                "Initial policy - starts in shadow mode (observe only, no "
                 "proposals). Thresholds intentionally stricter than the "
                 "precedent engine's own suggestion gates."
             ),
@@ -195,66 +137,37 @@ def ensure_default_automation_policy() -> None:
 
 
 def ensure_auto_block_log_columns() -> None:
-    """Adds auto_block_log.case_id and .policy_version_id if missing."""
     _add_columns_if_missing("auto_block_log", {"case_id": "INTEGER", "policy_version_id": "INTEGER"})
 
 
 def ensure_auto_block_log_review_columns() -> None:
-    """Adds auto_block_log.rejection_reason and .reviewed_at if missing."""
     _add_columns_if_missing("auto_block_log", {"rejection_reason": "TEXT", "reviewed_at": "DATETIME"})
 
 
 def ensure_analyst_decisions_ai_proposal_columns() -> None:
-    """Adds analyst_decisions.ai_proposed and .ai_proposal_id if missing."""
     _add_columns_if_missing(
         "analyst_decisions", {"ai_proposed": "BOOLEAN DEFAULT 0", "ai_proposal_id": "INTEGER"},
     )
 
 
 def ensure_automation_policy_auto_triggered_column() -> None:
-    """Adds automation_policy_versions.auto_triggered if missing — flags a
-    policy version created automatically by the circuit breaker rather
-    than a manual change."""
     _add_columns_if_missing("automation_policy_versions", {"auto_triggered": "BOOLEAN DEFAULT 0"})
 
 
 def ensure_automation_policy_legacy_columns_dropped() -> None:
-    """Drops automation_policy_versions.green_threshold/red_threshold/
-    block_threshold — leftover columns from this table's original,
-    single-threshold design, superseded entirely by the multi-gate policy
-    fields above. Confirmed zero readers anywhere in the codebase and
-    excluded from automation.py's _POLICY_FIELDS, so they were never even
-    copied forward onto a new policy version — every row got the same
-    static column default, permanently."""
     _drop_columns_if_present(
         "automation_policy_versions", ["green_threshold", "red_threshold", "block_threshold"],
     )
 
 
 def ensure_case_assigned_to_dropped() -> None:
-    """Drops cases.assigned_to. Confirmed zero readers/writers anywhere:
-    not in any Pydantic schema (never exposed via the API), not rendered
-    in the frontend, not used in any query/filter — no case-assignment
-    feature exists in this system. Nullable, so no data-loss risk beyond
-    the column itself (every value was already NULL — verified before
-    dropping)."""
     _drop_columns_if_present("cases", ["assigned_to"])
 
 
 def ensure_rule_hit_score_impact_dropped() -> None:
-    """Drops rule_hits.score_impact. Confirmed always NULL in practice:
-    none of the three RuleHit(...) construction sites in main.py ever set
-    it, and every existing row in the live database had NULL here too
-    (verified before dropping). Was exposed via RuleHitOut — a live API
-    field that could only ever return null — removed from the schema at
-    the same time this column was dropped."""
     _drop_columns_if_present("rule_hits", ["score_impact"])
 
 
-# A one-time refactor translated explain.py's SHAP direction labels from
-# Turkish ("artıran"/"azaltan") to English but never backfilled rows
-# already written under the old labels, leaving the two vocabularies mixed
-# in the same column.
 _SHAP_DIRECTION_TRANSLATIONS = {
     "artıran": "increasing",
     "azaltan": "decreasing",
@@ -262,13 +175,6 @@ _SHAP_DIRECTION_TRANSLATIONS = {
 
 
 def ensure_shap_explanation_direction_backfill() -> None:
-    """One-time data backfill: translates legacy Turkish
-    shap_explanations.direction values to their English equivalents. Maps
-    only the two known legacy values (exact match) — anything else is left
-    untouched rather than guessed, and logged so it doesn't disappear
-    silently. Safe to re-run: each UPDATE's WHERE clause only matches rows
-    still in the old vocabulary, so once the backfill has run once, every
-    subsequent call is a no-op."""
     inspector = inspect(engine)
     if "shap_explanations" not in inspector.get_table_names():
         return
@@ -295,8 +201,6 @@ def ensure_shap_explanation_direction_backfill() -> None:
             )
 
 
-# Renames old internal-development reason codes to plain, descriptive
-# labels. Exact match only — anything else is left untouched.
 _REASON_CODE_RENAMES = {
     "phase9_seed_decision": "seed_cluster_decision",
     "adim6_live_decision": "precedent_learning_test",
@@ -311,10 +215,6 @@ _REASON_CODE_RENAMES = {
 
 
 def ensure_reason_code_rename() -> None:
-    """One-time data cleanup: renames analyst_decisions.analyst_reason_code
-    values still using old internal-development labels. Exact match only;
-    anything outside the map is left untouched. Safe to re-run — each
-    UPDATE's WHERE clause only matches rows still carrying the old label."""
     inspector = inspect(engine)
     if "analyst_decisions" not in inspector.get_table_names():
         return

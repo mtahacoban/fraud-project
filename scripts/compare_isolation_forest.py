@@ -2,17 +2,16 @@
 Isolation Forest baseline vs. the existing LogReg baseline and the
 production XGBoost model, evaluated on the exact same train/val/test
 split train_models.py/evaluate_model.py already used (data/*.parquet,
-RANDOM_STATE=42) — no re-splitting, so the comparison is apples-to-apples.
+RANDOM_STATE=42) - no re-splitting, so the comparison is apples-to-apples.
 
 Comparison artifact only. Does not touch the production model, scoring
-path, or any file under backend/ — Isolation Forest is fit and scored
+path, or any file under backend/ - Isolation Forest is fit and scored
 here and nowhere else.
 
 Isolation Forest is unsupervised: fit(X_train) never sees y_train. Labels
 are only used afterward, the same way they're used for every model here:
 to pick an F1-max decision threshold on val and to evaluate on test.
-`contamination` is set to the training set's true fraud rate (~0.30%) —
-a defensible, undisputed choice for a baseline (not a tuned value).
+`contamination` is set to the training set's true fraud rate (~0.30%) - a defensible, undisputed choice for a baseline (not a tuned value).
 
 Usage (from the project root):
     venv/Scripts/python.exe scripts/compare_isolation_forest.py
@@ -90,7 +89,7 @@ def main() -> None:
     print(f"Isolation Forest F1-max threshold (val): {ISO_THR:.6f}  (val F1={iso_val_f1:.4f})")
     iso_m = evaluate("Isolation Forest", y_test, iso_test_score, ISO_THR)
 
-    # --- LogReg (existing baseline) — reproduced on the identical split ---
+    # --- LogReg (existing baseline) - reproduced on the identical split ---
     logreg = joblib.load(f"{MODEL_DIR}/logreg_v1.pkl")
     X_val_sc, X_test_sc = val_sc[ML_FEATURES].values, test_sc[ML_FEATURES].values
     lr_val_proba = logreg.predict_proba(X_val_sc)[:, 1]
@@ -98,7 +97,7 @@ def main() -> None:
     LR_THR, _ = f1max_threshold(y_val, lr_val_proba)
     lr_m = evaluate("LogReg (F1-max)", y_test, lr_test_proba, LR_THR)
 
-    # --- XGBoost (production model) — reproduced on the identical split ---
+    # --- XGBoost (production model) - reproduced on the identical split ---
     xgb_model = joblib.load(f"{MODEL_DIR}/xgb_v1.pkl")
     xgb_val_proba = xgb_model.predict_proba(X_val)[:, 1]
     xgb_test_proba = xgb_model.predict_proba(X_test)[:, 1]
@@ -106,7 +105,7 @@ def main() -> None:
     xgb_m = evaluate("XGBoost (production)", y_test, xgb_test_proba, XGB_THR)
 
     print("\n" + "=" * 74)
-    print("THREE-WAY BASELINE COMPARISON — TEST SET (same split, RANDOM_STATE=42)")
+    print("THREE-WAY BASELINE COMPARISON - TEST SET (same split, RANDOM_STATE=42)")
     print("=" * 74)
     print(f"{'Model':<22}{'PR-AUC':>9}{'ROC-AUC':>9}{'Precision':>11}{'Recall':>9}{'F1':>8}")
     for m in [lr_m, iso_m, xgb_m]:

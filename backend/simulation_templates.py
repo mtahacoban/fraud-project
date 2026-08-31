@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-# Each template only fills TransactionIn's scoring-relevant input fields.
-# isFraud is never included — whether a transaction is fraud is for the
-# model + rule engine to decide, not the template.
 SIMULATION_TEMPLATES: list[dict] = [
     {
         "id": "account_drain",
         "label": "Account Drain",
         "description": (
             "Origin account fully drained to a destination with no balance "
-            "history — the pattern the model has learned to flag most strongly."
+            "history - the pattern the model has learned to flag most strongly."
         ),
         "input": {
             "step": 3,
@@ -44,7 +41,7 @@ SIMULATION_TEMPLATES: list[dict] = [
         "label": "Borderline",
         "description": (
             "A transfer over the high-amount threshold (>200k) but a partial, "
-            "balance-consistent drain to a real destination — not an automatic "
+            "balance-consistent drain to a real destination - not an automatic "
             "hard-rule hit."
         ),
         "input": {
@@ -62,7 +59,7 @@ SIMULATION_TEMPLATES: list[dict] = [
         "label": "High-Amount Cash-Out",
         "description": (
             "A large cash-out with a near-complete drain to a merchant-style "
-            "destination (zero balance before/after) — typically trips the "
+            "destination (zero balance before/after) - typically trips the "
             "ghost_destination hard rule (a known PaySim artifact: merchant "
             "accounts never update their balance)."
         ),

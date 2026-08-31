@@ -2,18 +2,18 @@
 Measures POST /score end-to-end latency (feature prep + XGBoost + rule
 engine + SHAP + calibration + DB write) against a running backend. Only
 TRANSFER/CASH_OUT rows are sampled so every request exercises the *full*
-pipeline — PAYMENT/CASH_IN/DEBIT take the fast-path GREEN shortcut
+pipeline - PAYMENT/CASH_IN/DEBIT take the fast-path GREEN shortcut
 (backend/scoring.py: is_model_relevant()) and would understate the number
 this is meant to report.
 
 LLM report generation runs in a background task and is deliberately NOT
-part of this measurement — /score never waits on it, so timing the HTTP
+part of this measurement - /score never waits on it, so timing the HTTP
 round-trip already excludes it.
 
 All sampled transactions are tagged (nameOrig="LATENCY_TEST_<i>") and
 deleted, along with everything they produced (cases, scores, SHAP rows,
 rule hits, reports, precedent/automation artifacts), at the end of the
-run — this script leaves the database exactly as it found it.
+run - this script leaves the database exactly as it found it.
 
 Usage (with the backend running, from the project root):
     venv/Scripts/python.exe scripts/measure_latency.py

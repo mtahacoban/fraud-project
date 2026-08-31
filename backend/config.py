@@ -13,9 +13,6 @@ class Settings(BaseSettings):
     calibrator_path: str = "models/xgb_v1_calibrated.pkl"
     model_version: str = "xgb_v1_calibrated"
 
-    # LLM report generation. Provider is abstract (see backend/llm_service.py);
-    # only "groq" is implemented today. A blank key/model is valid — it just
-    # means every report falls back to the deterministic findings text.
     llm_provider: str = ""
     llm_api_key: str = ""
     llm_model: str = ""

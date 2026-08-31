@@ -9,20 +9,11 @@ from backend import db_models as m
 from backend import precedent
 from backend.database import SessionLocal
 
-# Separate from report_worker's set/lock — an independent background job
-# (precedent explanation vs. the SHAP/rules report), same pattern:
-# process-local guard against generating the same thing twice at once.
 _generating_case_ids: set[int] = set()
 _lock = threading.Lock()
 
 
 def generate_and_store_precedent_explanation(case_id: int) -> None:
-    """Runs in a FastAPI BackgroundTask, after the triggering response has
-    already been sent — opens its own db session, same reasoning as
-    report_worker.generate_and_store_report(). Recomputes find_precedents()
-    from scratch (cheap, deterministic) rather than trusting a summary
-    passed in from before the background task was scheduled, in case the
-    pool changed in between."""
     db = SessionLocal()
     try:
         case = db.get(m.Case, case_id)
@@ -36,7 +27,7 @@ def generate_and_store_precedent_explanation(case_id: int) -> None:
         neighbors = precedent.find_precedents(case, db, scaler, k=precedent.DEFAULT_K)
         summary = precedent.summarize_precedents(neighbors)
         if summary["suggested_decision"] is None:
-            return  # nothing to explain — this path shouldn't have been scheduled, but stay safe
+            return
 
         txn = db.get(m.Transaction, case.transaction_id)
         result = precedent.explain_precedents(summary, txn)
@@ -59,17 +50,6 @@ def generate_and_store_precedent_explanation(case_id: int) -> None:
 def ensure_precedent_explanation(
     case_id: int, summary: dict, background_tasks: BackgroundTasks, db: Session,
 ) -> dict:
-    """Only called when summary["suggested_decision"] is not None — the
-    no-suggestion path is instant and doesn't need caching or a background
-    task at all (see backend/precedent.explain_precedents).
-
-    Returns {"status": "ready"|"generating", "text": str|None, "source": str|None}.
-    A cached explanation is reused only if precedent_index hasn't grown
-    since it was generated (pool_size_at_generation still matches the
-    current total row count) — see PrecedentExplanation's docstring in
-    db_models.py for why pool size, not this case's own aggregate numbers,
-    is the invalidation key. Any decision anywhere invalidates every
-    cached explanation; the next view regenerates it."""
     existing = (
         db.query(m.PrecedentExplanation)
         .filter(m.PrecedentExplanation.case_id == case_id)

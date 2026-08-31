@@ -25,7 +25,6 @@ TARGET       = "isFraud"
 RANDOM_STATE = 42
 os.makedirs(REPORT_DIR, exist_ok=True)
 
-# ── Data ────────────────────────────────────────────────────────────────────
 print("Loading data...")
 train_raw = pd.read_parquet(DATA_DIR + "/train.parquet")
 val_raw   = pd.read_parquet(DATA_DIR + "/val.parquet")
@@ -37,7 +36,6 @@ y_train = train_raw[TARGET].values
 y_val   = val_raw[TARGET].values
 y_test  = test_raw[TARGET].values
 
-# ── Models ─────────────────────────────────────────────────────────────────
 print("Loading models...")
 xgb_model = joblib.load(MODEL_DIR + "/xgb_v1.pkl")
 logreg    = joblib.load(MODEL_DIR + "/logreg_v1.pkl")
@@ -46,7 +44,6 @@ lr_test_proba  = logreg.predict_proba(test_sc[ML_FEATURES].values)[:, 1]
 xgb_test_proba = xgb_model.predict_proba(test_raw[ML_FEATURES].values)[:, 1]
 xgb_val_proba  = xgb_model.predict_proba(val_raw[ML_FEATURES].values)[:, 1]
 
-# working threshold (val F1-max)
 prec_a, rec_a, thr_a = precision_recall_curve(y_val, xgb_val_proba)
 denom = prec_a[:-1] + rec_a[:-1]
 f1s   = np.where(denom > 0, 2 * prec_a[:-1] * rec_a[:-1] / denom, 0.0)
@@ -54,37 +51,35 @@ XGB_THR = float(thr_a[np.argmax(f1s)])
 print(f"XGBoost working threshold: {XGB_THR:.4f}\n")
 
 print("=" * 60)
-print("HARD RULES — data validation")
+print("HARD RULES - data validation")
 print("=" * 60)
 
 combined     = pd.concat([train_raw, val_raw], ignore_index=True)
 baseline_rate = combined[TARGET].mean()
 print(f"Overall fraud rate: {baseline_rate:.4%}  (n={len(combined):,})\n")
 
-# drain_account (PREVIOUS DESIGN: hard rule)
 drain_mask  = (combined["oldbalanceOrg"] > 0) & \
               (combined["amount"] >= combined["oldbalanceOrg"] * 0.99)
 n_drain     = drain_mask.sum()
 drain_fraud = combined.loc[drain_mask, TARGET].mean()
 drain_lift  = drain_fraud / baseline_rate
 print(f"drain_account  -> {n_drain:,} txns  |  fraud: {drain_fraud:.4%}  |  lift: {drain_lift:.1f}x")
-print(f"  Decision: lift={drain_lift:.1f}x — too broad for a hard rule (triggered on 43% of the test set)")
+print(f"  Decision: lift={drain_lift:.1f}x - too broad for a hard rule (triggered on 43% of the test set)")
 print(f"  -> DEMOTED TO SOFT RULE (weight=20)")
 print()
 
-# ghost_destination (HARD RULE - kept)
 ghost_mask  = (combined["oldbalanceDest"] == 0) & (combined["newbalanceDest"] == 0)
 n_ghost     = ghost_mask.sum()
 ghost_fraud = combined.loc[ghost_mask, TARGET].mean()
 ghost_lift  = ghost_fraud / baseline_rate
 print(f"ghost_destination -> {n_ghost:,} txns  |  fraud: {ghost_fraud:.4%}  |  lift: {ghost_lift:.1f}x")
-print(f"  Decision: lift={ghost_lift:.1f}x — stays a HARD RULE")
-print(f"  WARNING: PaySim artifact — merchant accounts don't update their balance;")
+print(f"  Decision: lift={ghost_lift:.1f}x - stays a HARD RULE")
+print(f"  WARNING: PaySim artifact - merchant accounts don't update their balance;")
 print(f"           a real system would need a merchant filter.")
 print()
 
 print("=" * 60)
-print("SOFT RULES — correlation validation (train+val)")
+print("SOFT RULES - correlation validation (train+val)")
 print("=" * 60)
 print(f"Threshold: lift >= 1.5 -> keep; lift < 1.5 -> drop\n")
 
@@ -118,7 +113,7 @@ print(f"\nKept   : {kept}")
 print(f"Dropped: {dropped}\n")
 
 print("=" * 60)
-print("HYBRID SCORE — test set")
+print("HYBRID SCORE - test set")
 print("=" * 60)
 
 test = test_raw.copy()
@@ -139,7 +134,6 @@ soft_sc += ((test["type"] == "TRANSFER") &
             (test["amount"] > 200_000)).astype(float) * 30       # high_amount_transfer
 test["soft_score"] = soft_sc.clip(0, 100).astype(int)
 
-# Hybrid score and risk zones
 raw_hybrid = np.where(
     test["hard_rule_flag"],
     np.maximum(85.0, test["ml_score"].values),
@@ -151,7 +145,6 @@ test["risk_band"] = "GRAY"
 test.loc[test["hybrid_score"] <  15, "risk_band"] = "GREEN"
 test.loc[test["hybrid_score"] >= 85, "risk_band"] = "RED"
 
-# Risk band distribution
 band_counts = test.groupby("risk_band")[TARGET].agg(["count", "sum"])
 band_counts.columns  = ["total", "fraud_count"]
 band_counts["clean"] = band_counts["total"] - band_counts["fraud_count"]
@@ -173,7 +166,6 @@ gf_fraud      = int(test.loc[test["ghost_destination"], TARGET].sum())
 print(f"\nHard rule (ghost_destination): {n_ghost_test:,} triggers  |  "
       f"{gf_fraud} fraud ({gf_fraud/n_ghost_test*100:.1f}%)")
 
-# Sample transactions
 print("\nSample hybrid scoring:")
 idx_fraud  = test[test[TARGET] == 1].index[:3]
 idx_clean  = test[test[TARGET] == 0].index[:3]
@@ -183,7 +175,7 @@ cols_show  = ["amount", "type", "hard_rule_flag", "ghost_destination",
 print(test.loc[sample_idx, cols_show].to_string())
 
 print("\n" + "=" * 60)
-print("COMPARISON — Test Set")
+print("COMPARISON - Test Set")
 print("=" * 60)
 
 hybrid_proba = test["hybrid_score"].values / 100.0
@@ -210,14 +202,12 @@ def evaluate(name, y_true, y_proba, thr):
         "TP": tp, "FP": fp, "TN": tn, "FN": fn,
     }
 
-# LogReg F1-max threshold (val)
 lr_val_proba  = logreg.predict_proba(val_sc[ML_FEATURES].values)[:, 1]
 p_lr, r_lr, t_lr = precision_recall_curve(y_val, lr_val_proba)
 d_lr = p_lr[:-1] + r_lr[:-1]
 f_lr = np.where(d_lr > 0, 2 * p_lr[:-1] * r_lr[:-1] / d_lr, 0.0)
 LR_THR = float(t_lr[np.argmax(f_lr)])
 
-# RED threshold for Hybrid (0.85 = 85/100)
 HYB_THR = 0.85
 
 lr_m  = evaluate("LogReg",  y_test, lr_test_proba, LR_THR)
@@ -256,7 +246,7 @@ ax.axhline(y_test.mean(), linestyle=":", color="gray", alpha=0.6,
            label=f"Random (P={y_test.mean():.4f})")
 ax.set_xlabel("Recall", fontsize=12)
 ax.set_ylabel("Precision", fontsize=12)
-ax.set_title("PR Curve: LogReg vs XGBoost vs Hybrid — Test Set", fontsize=13)
+ax.set_title("PR Curve: LogReg vs XGBoost vs Hybrid - Test Set", fontsize=13)
 ax.legend(fontsize=10)
 ax.set_xlim([0, 1]); ax.set_ylim([0, 1.05])
 ax.grid(alpha=0.3)
@@ -277,7 +267,7 @@ ax.bar(x - w/2, t_c, w, label="Clean", color="steelblue", alpha=0.8)
 ax.bar(x + w/2, f_c, w, label="Fraud", color="tomato",    alpha=0.8)
 ax.set_xticks(x); ax.set_xticklabels(bands, fontsize=12)
 ax.set_ylabel("Transaction count")
-ax.set_title("Risk Band Distribution — Test Set", fontsize=13)
+ax.set_title("Risk Band Distribution - Test Set", fontsize=13)
 ax.set_yscale("log")
 ax.legend(); ax.grid(axis="y", alpha=0.3)
 for xi, fc in zip(x + w/2, f_c):
@@ -299,7 +289,7 @@ ax.axvline(15, color="seagreen", linestyle="--", lw=1.5, label="GREEN/GRAY (15)"
 ax.axvline(85, color="tomato",   linestyle="--", lw=1.5, label="GRAY/RED (85)")
 ax.set_xlabel("Hybrid Score (0-100)", fontsize=12)
 ax.set_ylabel("Transaction count (log)")
-ax.set_title("Hybrid Score Distribution — Fraud vs Clean", fontsize=13)
+ax.set_title("Hybrid Score Distribution - Fraud vs Clean", fontsize=13)
 ax.set_yscale("log"); ax.legend(fontsize=10); ax.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig(REPORT_DIR + "/hybrid_score_distribution.png", dpi=120)
@@ -331,7 +321,7 @@ ax.hist(no_hard.loc[no_hard[TARGET] == 1, "soft_score"],
         bins=bins2, alpha=0.8, color="tomato",    label="Fraud")
 ax.set_xlabel("Soft Score (0-100)", fontsize=12)
 ax.set_ylabel("Transaction count")
-ax.set_title("Soft Score Distribution (no hard rule) — Fraud vs Clean", fontsize=13)
+ax.set_title("Soft Score Distribution (no hard rule) - Fraud vs Clean", fontsize=13)
 ax.legend(fontsize=10); ax.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig(REPORT_DIR + "/soft_rule_distribution.png", dpi=120)
